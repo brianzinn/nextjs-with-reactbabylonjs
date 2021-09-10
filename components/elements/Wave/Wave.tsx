@@ -1,131 +1,70 @@
-import { Animation, Vector3 } from '@babylonjs/core'
-import React, { useEffect, useRef } from 'react'
-import { Engine, Scene, useScene } from 'react-babylonjs'
-import * as R from 'remeda'
+import { FreeCamera } from '@babylonjs/core/Cameras/freeCamera'
+import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight'
+import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial' // needed for side-effect
+import { Color3 } from '@babylonjs/core/Maths/math.color'
+import { Vector3 } from '@babylonjs/core/Maths/math.vector'
+import { Mesh } from '@babylonjs/core/Meshes/mesh'
+import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder'
+import { Scene } from '@babylonjs/core/scene'
+import { Nullable } from '@babylonjs/core/types'
+import SceneComponent from 'babylonjs-hook'
+import React from 'react'
 import tw from 'twin.macro'
 
-function combine<T>(list1: T[], list2: T[]): T[][] {
-  return list1.map((x) => list2.map((y) => [x, y])).reduce((acc, tuple) => acc.concat(tuple), [])
+// not good for hot reloading (should be a ref instead)
+let box: Nullable<Mesh> = null
+
+const onSceneReady = (scene: Scene) => {
+  // This creates and positions a free camera (non-mesh)
+  const camera = new FreeCamera('camera1', new Vector3(0, 5, -10), scene)
+
+  // This targets the camera to scene origin
+  camera.setTarget(Vector3.Zero())
+
+  const canvas = scene.getEngine().getRenderingCanvas()
+
+  // This attaches the camera to the canvas
+  camera.attachControl(canvas, true)
+
+  // This creates a light, aiming 0,1,0 - to the sky (non-mesh)
+  const light = new HemisphericLight('light', new Vector3(0, 1, 0), scene)
+
+  // Default intensity is 1. Let's dim the light a small amount
+  light.intensity = 0.7
+
+  // Our built-in 'box' shape.
+  box = MeshBuilder.CreateBox('box', { size: 2 }, scene)
+
+  // Move the box upward 1/2 its height
+  box.position.y = 1
+
+  const boxMat = new StandardMaterial('box', scene)
+  boxMat.diffuseColor = Color3.Red()
+  boxMat.specularColor = Color3.Black()
+  box.material = boxMat
+
+  // Our built-in 'ground' shape.
+  MeshBuilder.CreateGround('ground', { width: 6, height: 6 }, scene)
 }
 
-const config = {
-  amount: { x: 50, z: 50 },
-  separation: 2,
-  frameRate: 60,
-  animation: {
-    length: 360,
-    speed: 8
+/**
+ * Will run on every frame render.  We are spinning the box on y-axis.
+ */
+const onRender = (scene: Scene) => {
+  if (box !== null) {
+    const deltaTimeInMillis = scene.getEngine().getDeltaTime()
+
+    const rpm = 10
+    box.rotation.y += (rpm / 60) * Math.PI * 2 * (deltaTimeInMillis / 1000)
   }
-}
-
-const WithAnimation = () => {
-  const groupRef = useRef(null)
-  const sphereRef = useRef([])
-  const scene = useScene()
-
-  const position = Vector3.Zero()
-
-  useEffect(() => {
-    if (!sphereRef.current || scene == null) {
-      return
-    }
-
-    const refs = sphereRef.current
-    refs.forEach(({ indexX, indexZ, el }) => {
-      const animations = getYAnimation(indexX, indexZ)
-
-      scene.beginDirectAnimation(
-        el,
-        animations,
-        0,
-        (config.animation.length * config.frameRate) / config.animation.speed, // TODO, what is the correct start = endpoint? currently its length of the animation
-        true
-      )
-    })
-  })
-
-  const onCreated = () => {
-    // console.timeLog('Timing', 'onCreated');
-  }
-
-  const spheres = getSpheres(config.amount, config.separation, sphereRef)
-
-  return (
-    <transformNode name="group" ref={groupRef} position={position} onCreated={onCreated}>
-      {spheres}
-    </transformNode>
-  )
-}
-
-function getSpheres(
-  amount: { x: number; z: number },
-  separation: number,
-  ref: React.MutableRefObject<{ [key: number]: unknown }>
-) {
-  const rangeX = R.range(0, amount.x)
-  const rangeZ = R.range(0, amount.z)
-
-  return combine(rangeX, rangeZ).map(([x, z], idx) => {
-    const key = `sphere-${x}-${z}`
-
-    return (
-      <sphere
-        name={key}
-        key={key}
-        ref={(el) => (ref.current[idx] = { indexX: x, indexZ: z, el })}
-        diameter={0.5}
-        segments={16}
-        position={
-          new Vector3(x * separation - (amount.x * separation) / 2, 0, z * separation - (amount.z * separation) / 2)
-        }
-      />
-    )
-  })
-}
-
-function getYAnimation(indexX: number, indexZ: number) {
-  const { length, speed } = config.animation
-
-  const scale = config.separation / 2
-  /**
-   * @param x : X Position in Sphere Grid
-   * @param y : Y Position in Sphere Grid
-   * @param t : time of animation frame
-   * @return Y Position of Sphere at time T
-   */
-  const y = (x: number, z: number, t: number): number =>
-    Math.sin((x + t) * 0.3) * scale + Math.sin((z + t) * 0.5) * scale
-
-  const keys = R.range(0, length).map((t) => ({
-    frame: (t * config.frameRate) / speed,
-    value: y(indexX, indexZ, t)
-  }))
-
-  const animation = new Animation('animation', 'position.y', config.frameRate, 0, 1)
-  animation.setKeys(keys)
-
-  return [animation]
 }
 
 const Wave = () => {
-  const minZ = -((config.amount.z * config.separation) / 2)
+  // const minZ = -((config.amount.z * config.separation) / 2)
 
   return (
     <div css={[tw`flex-auto`]}>
-      <Engine antialias adaptToDeviceRatio canvasId="wave-canvas">
-        <Scene>
-          <arcRotateCamera
-            name="arc"
-            target={new Vector3(0, 0, 0)}
-            alpha={Math.PI - 0.15}
-            beta={Math.PI / 2 + 0.15}
-            radius={minZ}
-          />
-
-          <hemisphericLight name="light1" intensity={1} direction={Vector3.Up()} />
-          <WithAnimation />
-        </Scene>
-      </Engine>
+      <SceneComponent antialias onSceneReady={onSceneReady} onRender={onRender} id="wave-canvas" />
     </div>
   )
 }

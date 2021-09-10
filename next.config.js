@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
-const withTM = require('next-transpile-modules')(['@babylonjs/core', '@babylonjs/gui', 'react-babylonjs'])
+// this can be disabled if you are doing dynamic imports without SSR
+// const withTM = require('next-transpile-modules')(['@babylonjs/core', '@babylonjs/gui', 'babylonjs-hook'])
 const withBundleAnalyzer = require('@next/bundle-analyzer')({
   enabled: process.env.ANALYZE === 'true'
 })
@@ -28,4 +29,4 @@ const nextConfig = {
   }
 }
 
-module.exports = withPlugins([withBundleAnalyzer, withTM], nextConfig)
+module.exports = withPlugins([withBundleAnalyzer /*, withTM*/], nextConfig)

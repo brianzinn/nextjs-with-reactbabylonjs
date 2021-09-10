@@ -1,8 +1,11 @@
 import 'twin.macro'
 
+import dynamic from 'next/dynamic'
 import Head from 'next/head'
-
-import Wave from '../components/elements/Wave/Wave'
+const Wave = dynamic(() => import('../components/elements/Wave/Wave'), {
+  ssr: false
+})
+// import Wave from '../components/elements/Wave/Wave';
 
 export default function Home(): JSX.Element {
   return (
